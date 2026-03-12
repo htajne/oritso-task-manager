@@ -10,30 +10,42 @@
 - ✅ **Delete** - Remove tasks with confirmation
 - ✅ **Search** - Filter by title/status
 
-## 🛠 **Tech Stack**
-
 ## 📋 **Database Design (DB-First Approach)**
 
-**ER Diagram:** Single `tasks` entity [file:1]
+erDiagram
 
-┌──────────────────────┐
-│ tasks │
-├──────────────────────┤
-│ id (PK, AUTO) │
-│ title (TEXT)_ │
-│ description (TEXT) │
-│ due_date (DATE) │
-│ status (TEXT)_ │
-│ remarks (TEXT) │
-│ created*on (TS)* │
-│ updated*on (TS)* │
-│ created*by (TEXT)* │
-│ updated*by (TEXT)* │
-└──────────────────────┘
+    TASK {
+        
+        int id PK "AUTO_INCREMENT"
+        
+        varchar title "NOT NULL, INDEX"
+        
+        text description
+        
+        date due_date
+        
+        varchar status "DEFAULT 'Pending', INDEX" 
+        
+        text remarks
+        
+        timestamp created_on "DEFAULT CURRENT_TIMESTAMP, INDEX"
+        
+        timestamp updated_on "DEFAULT CURRENT_TIMESTAMP"
+        
+        varchar created_by "DEFAULT 'Himanshu Tajne'"
+        
+        varchar updated_by "DEFAULT 'Himanshu Tajne'"
+    }
+    
+    %% Performance Indexes
+    TASK ||--|| TASK : "title INDEX (search)"
+    TASK ||--|| TASK : "status INDEX (filter)" 
+    TASK ||--|| TASK : "created_on INDEX (sort)"
+    
+    %% Key Constraints
+    TASK ||--o{ TASK : "PK: id"
+    TASK ||--o{ TASK : "Audit Trail"
 
-- = Indexed fields for performance
-
-**Indexes:** `title`, `status`, `created_on` for search performance
 
 ## 🚀 **Quick Start**
 
@@ -56,8 +68,18 @@ PROJECT STRUCTURE (MVC)
 ├── app.py          # Controller (Routes + Logic)
 ├── models.py       # Model (Task ORM)
 ├── forms.py        # Forms (Validation)
-├── templates/      # View (HTML/Jinja2)
+├── templates/      # View (HTML)
 ├── init_db.py      # DB Setup
 ├── requirements.txt
 └── README.md
 ```
+**VISUAL REPRESENTATIONS**
+<img width="961" height="794" alt="Screenshot 2026-03-12 223237" src="https://github.com/user-attachments/assets/7251a391-6d6f-4f94-bdc7-60d84985303b" />
+
+<img width="962" height="749" alt="Screenshot 2026-03-12 223258" src="https://github.com/user-attachments/assets/e029f0d1-4c48-49d9-be60-255711335bed" />
+
+<img width="1003" height="870" alt="Screenshot 2026-03-12 223352" src="https://github.com/user-attachments/assets/9e810786-161d-4a4a-8e77-3f2aed8fb93f" />
+
+
+
+
