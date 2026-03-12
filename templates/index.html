@@ -1,6 +1,6 @@
 {% extends 'base.html' %} {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h1><i class="fas fa-list"></i> Tasks</h1>
+  <h1><i class="fas fa-list"></i> Tasks ({{ tasks|length }})</h1>
   <button
     class="btn btn-primary"
     data-bs-toggle="modal"
@@ -10,16 +10,16 @@
   </button>
 </div>
 
-<!-- Search -->
+<!-- Search + Status Filter -->
 <div class="row mb-3">
-  <div class="col-md-6">
+  <div class="col-md-5">
     <form method="GET">
       <div class="input-group">
         <input
           type="text"
           class="form-control"
           name="search"
-          value="{{ search }}"
+          value="{{ search or '' }}"
           placeholder="Search title or status..."
         />
         <button class="btn btn-outline-secondary" type="submit">
@@ -27,6 +27,41 @@
         </button>
       </div>
     </form>
+  </div>
+  <div class="col-md-7">
+    <div class="btn-group w-100" role="group">
+      <button class="btn btn-outline-info active filter-btn" data-status="all">
+        All
+      </button>
+      <button class="btn btn-outline-warning filter-btn" data-status="Pending">
+        Pending
+      </button>
+      <button
+        class="btn btn-outline-primary filter-btn"
+        data-status="In Progress"
+      >
+        In Progress
+      </button>
+      <button
+        class="btn btn-outline-success filter-btn"
+        data-status="Completed"
+      >
+        Completed
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Live Counters -->
+<div class="row mb-3">
+  <div class="col">
+    <small class="text-muted">
+      Total:
+      <span id="total-count" class="badge bg-info">{{ tasks|length }}</span> |
+      Pending: <span id="pending-count" class="badge bg-warning">0</span> | In
+      Progress: <span id="progress-count" class="badge bg-primary">0</span> |
+      Completed: <span id="completed-count" class="badge bg-success">0</span>
+    </small>
   </div>
 </div>
 
@@ -43,14 +78,18 @@
         <th>Actions</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody id="tasks-tbody">
       {% for task in tasks %}
-      <tr>
+      <tr
+        class="task-row"
+        data-status="{{ task.status }}"
+        data-id="{{ task.id }}"
+      >
         <td><strong>#{{ task.id }}</strong></td>
-        <td>
+        <td class="title-cell">
           {{ task.title[:50] }}{% if task.title|length > 50 %}...{% endif %}
         </td>
-        <td>
+        <td class="status-cell clickable">
           <span
             class="badge bg-{% if task.status == 'Completed' %}success{% elif task.status == 'In Progress' %}warning{% else %}secondary{% endif %}"
           >
@@ -58,28 +97,31 @@
           </span>
         </td>
         <td>
-          {{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '-' }}
+          {% if task.due_date %}{{ task.due_date.strftime('%Y-%m-%d') }}{% else
+          %}-{% endif %}
         </td>
         <td>{{ task.created_on.strftime('%Y-%m-%d') }}</td>
-        <td>
+        <td class="action-cell">
           <a
             href="{{ url_for('edit', task_id=task.id) }}"
             class="btn btn-sm btn-outline-primary"
           >
-            <i class="fas fa-edit"></i> Edit
+            <i class="fas fa-edit"></i>
           </a>
           <a
             href="{{ url_for('delete', task_id=task.id) }}"
-            class="btn btn-sm btn-outline-danger"
+            class="btn btn-sm btn-outline-danger delete-btn"
             onclick="return confirm('Delete this task?');"
           >
-            <i class="fas fa-trash"></i> Delete
+            <i class="fas fa-trash"></i>
           </a>
         </td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="6" class="text-center text-muted">No tasks found.</td>
+        <td colspan="6" class="text-center text-muted p-5">
+          No tasks found. <i class="fas fa-inbox"></i>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -103,19 +145,25 @@
         <div class="modal-body">
           <div class="mb-3">
             {{ form.title(class="form-control", placeholder="Enter task title")
-            }}
+            }} {% if form.title.errors %}
+            <div class="text-danger small mt-1">{{ form.title.errors[0] }}</div>
+            {% endif %}
           </div>
           <div class="mb-3">
-            {{ form.description(class="form-control", rows=3) }}
+            {{ form.description(class="form-control", rows=3, placeholder="Task
+            description...") }}
           </div>
           <div class="row">
-            <div class="col-md-6">
+            <div class="col-md-6 mb-3">
               {{ form.due_date(class="form-control") }}
             </div>
-            <div class="col-md-6">{{ form.status(class="form-control") }}</div>
+            <div class="col-md-6 mb-3">
+              {{ form.status(class="form-control") }}
+            </div>
           </div>
-          <div class="mt-3">
-            {{ form.remarks(class="form-control", rows=2) }}
+          <div class="mb-3">
+            {{ form.remarks(class="form-control", rows=2,
+            placeholder="Additional remarks...") }}
           </div>
         </div>
         <div class="modal-footer">
@@ -126,10 +174,109 @@
           >
             Cancel
           </button>
-          <button type="submit" class="btn btn-primary">Create Task</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save"></i> Create Task
+          </button>
         </div>
       </div>
     </form>
   </div>
 </div>
+
+<!-- Interactive JavaScript -->
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    // Status Filter
+    document.querySelectorAll(".filter-btn").forEach((btn) => {
+      btn.addEventListener("click", function () {
+        document
+          .querySelectorAll(".filter-btn")
+          .forEach((b) => b.classList.remove("active"));
+        this.classList.add("active");
+        filterTasks(this.dataset.status);
+        updateCounters();
+      });
+    });
+
+    // Click Status to Cycle (Pending → In Progress → Completed)
+    document.querySelectorAll(".status-cell").forEach((cell) => {
+      cell.addEventListener("click", function (e) {
+        if (e.target.tagName === "I") return; // Skip icon clicks
+        const row = this.closest(".task-row");
+        const statuses = ["Pending", "In Progress", "Completed"];
+        const current = row.dataset.status;
+        const next = statuses[(statuses.indexOf(current) + 1) % 3];
+
+        row.dataset.status = next;
+        this.innerHTML = `<span class="badge bg-${next === "Completed" ? "success" : next === "In Progress" ? "warning" : "secondary"}">${next}</span>`;
+
+        // Smooth animation
+        row.style.transition = "all 0.3s ease";
+        row.style.transform = "scale(1.02)";
+        setTimeout(() => (row.style.transform = ""), 300);
+
+        updateCounters();
+      });
+    });
+
+    // Hover Effects
+    document.querySelectorAll(".task-row").forEach((row) => {
+      row.addEventListener("mouseenter", () => {
+        row.style.transform = "translateY(-2px)";
+        row.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+      });
+      row.addEventListener("mouseleave", () => {
+        row.style.transform = "";
+        row.style.boxShadow = "";
+      });
+    });
+
+    // Live Counters
+    function updateCounters() {
+      const total = document.querySelectorAll(".task-row").length;
+      const pending = document.querySelectorAll(
+        '.task-row[data-status="Pending"]',
+      ).length;
+      const progress = document.querySelectorAll(
+        '.task-row[data-status="In Progress"]',
+      ).length;
+      const completed = document.querySelectorAll(
+        '.task-row[data-status="Completed"]',
+      ).length;
+
+      document.getElementById("total-count").textContent = total;
+      document.getElementById("pending-count").textContent = pending;
+      document.getElementById("progress-count").textContent = progress;
+      document.getElementById("completed-count").textContent = completed;
+    }
+
+    // Filter Tasks
+    function filterTasks(status) {
+      document.querySelectorAll(".task-row").forEach((row) => {
+        row.style.display =
+          status === "all" || row.dataset.status === status ? "" : "none";
+      });
+    }
+
+    // Initial load
+    updateCounters();
+  });
+</script>
+
+<style>
+  .clickable {
+    cursor: pointer;
+  }
+  .clickable:hover {
+    opacity: 0.8;
+  }
+  .task-row {
+    transition: all 0.3s ease;
+  }
+  .filter-btn.active {
+    background-color: #0d6efd;
+    color: white;
+  }
+</style>
+
 {% endblock %}
